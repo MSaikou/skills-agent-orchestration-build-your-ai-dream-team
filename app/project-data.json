@@ -1,0 +1,32 @@
+{
+  "projects": [
+    {
+      "name": "Atlas onboarding refresh",
+      "owner": "Jordan Lee",
+      "status": "On track",
+      "recentActivity": "Completed the first-run flow review and shared updated screens for feedback.",
+      "priority": "High"
+    },
+    {
+      "name": "Northstar analytics",
+      "owner": "Sam Rivera",
+      "status": "Needs attention",
+      "recentActivity": "The event taxonomy is under review; a decision is needed before dashboard QA can begin.",
+      "priority": "Medium"
+    },
+    {
+      "name": "Field notes mobile",
+      "owner": "Taylor Chen",
+      "status": "In progress",
+      "recentActivity": "Finished offline sync testing and started polishing the empty and retry states.",
+      "priority": "Low"
+    },
+    {
+      "name": "Orchard API migration",
+      "owner": "Morgan Patel",
+      "status": "Blocked",
+      "recentActivity": "Waiting on a staging credential before the integration checks can continue.",
+      "priority": "High"
+    }
+  ]
+}

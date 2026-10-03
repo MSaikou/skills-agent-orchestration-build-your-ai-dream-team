@@ -1,0 +1,286 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta
+      name="description"
+      content="A clear snapshot of project health, ownership, priorities, and recent activity."
+    >
+    <title>Project Pulse</title>
+    <link rel="stylesheet" href="styles.css">
+    <script>
+      const requiredProjectFields = [
+        "name",
+        "owner",
+        "status",
+        "recentActivity",
+        "priority",
+      ];
+
+      function showState(kind, title, message) {
+        const state = document.createElement("div");
+        state.className = `dashboard-state${kind ? ` dashboard-state--${kind}` : ""}`;
+        state.setAttribute("role", kind === "error" ? "alert" : "status");
+        state.setAttribute("aria-live", kind === "error" ? "assertive" : "polite");
+
+        if (kind === "loading") {
+          const indicator = document.createElement("span");
+          indicator.className = "loading-indicator";
+          indicator.textContent = title;
+          state.append(indicator);
+        } else {
+          const heading = document.createElement("h3");
+          heading.className = "dashboard-state-title";
+          heading.textContent = title;
+          state.append(heading);
+
+          if (message) {
+            const detail = document.createElement("p");
+            detail.className = "dashboard-state-message";
+            detail.textContent = message;
+            state.append(detail);
+          }
+        }
+
+        return state;
+      }
+
+      function statusTone(status) {
+        const value = status.trim().toLowerCase();
+        if (["on track", "complete", "completed", "healthy"].includes(value)) {
+          return "positive";
+        }
+        if (["needs attention", "at risk", "delayed"].includes(value)) {
+          return "warning";
+        }
+        if (["blocked", "off track", "critical"].includes(value)) {
+          return "negative";
+        }
+        return "";
+      }
+
+      function setVisibility(element, visible) {
+        element.hidden = !visible;
+        if (visible) {
+          element.style.removeProperty("display");
+        } else {
+          element.style.display = "none";
+        }
+      }
+
+      function createProjectCard(project, index) {
+        const card = document.createElement("article");
+        card.className = "project-card";
+        card.setAttribute("aria-labelledby", `project-title-${index}`);
+
+        const header = document.createElement("header");
+        header.className = "project-card-header";
+
+        const title = document.createElement("h3");
+        title.className = "project-card-title";
+        title.id = `project-title-${index}`;
+        title.textContent = project.name;
+        header.append(title);
+        card.append(header);
+
+        const metadata = document.createElement("div");
+        metadata.className = "project-card-meta";
+
+        const status = document.createElement("span");
+        status.className = "project-status";
+        const tone = statusTone(project.status);
+        if (tone) {
+          status.classList.add(`project-status--${tone}`);
+        }
+        status.textContent = project.status;
+        metadata.append(status);
+
+        const priority = document.createElement("span");
+        priority.className = "project-priority";
+        const priorityLevel = project.priority.trim().toLowerCase();
+        if (["high", "medium", "low"].includes(priorityLevel)) {
+          priority.classList.add(`project-priority--${priorityLevel}`);
+        }
+        priority.textContent = `${project.priority} priority`;
+        metadata.append(priority);
+        card.append(metadata);
+
+        const activity = document.createElement("p");
+        activity.className = "project-activity";
+        const activityLabel = document.createElement("span");
+        activityLabel.className = "project-activity-label";
+        activityLabel.textContent = "Recent activity";
+        activity.append(activityLabel, document.createTextNode(project.recentActivity));
+        card.append(activity);
+
+        const footer = document.createElement("footer");
+        footer.className = "project-card-footer";
+        const owner = document.createElement("div");
+        owner.className = "project-owner";
+        const avatar = document.createElement("span");
+        avatar.className = "owner-avatar";
+        avatar.setAttribute("aria-hidden", "true");
+        avatar.textContent = project.owner
+          .trim()
+          .split(/\s+/)
+          .slice(0, 2)
+          .map((part) => part.charAt(0).toUpperCase())
+          .join("");
+        const ownerName = document.createElement("span");
+        ownerName.className = "owner-name";
+        ownerName.textContent = project.owner;
+        owner.append(avatar, ownerName);
+        footer.append(owner);
+        card.append(footer);
+
+        return card;
+      }
+
+      function updateSummary(projects) {
+        document.querySelector("#project-count").textContent = String(projects.length);
+        document.querySelector("#high-priority-count").textContent = String(
+          projects.filter((project) => project.priority.trim().toLowerCase() === "high").length,
+        );
+        document.querySelector("#on-track-count").textContent = String(
+          projects.filter((project) => statusTone(project.status) === "positive").length,
+        );
+      }
+
+      async function loadProjects() {
+        const stateRegion = document.querySelector("#dashboard-content");
+        const grid = document.querySelector("#project-grid");
+        const summary = document.querySelector("#dashboard-summary");
+
+        try {
+          const response = await fetch("project-data.json");
+          if (!response.ok) {
+            throw new Error(`The request returned HTTP ${response.status}.`);
+          }
+
+          let data;
+          try {
+            data = await response.json();
+          } catch {
+            throw new Error("The project data file is not valid JSON.");
+          }
+
+          if (
+            !data ||
+            typeof data !== "object" ||
+            !Array.isArray(data.projects) ||
+            !data.projects.every(
+              (project) =>
+                project &&
+                typeof project === "object" &&
+                requiredProjectFields.every(
+                  (field) =>
+                    typeof project[field] === "string" &&
+                    project[field].trim().length > 0,
+                ),
+            )
+          ) {
+            throw new Error(
+              "Expected a projects array where every project has a non-empty name, owner, status, recentActivity, and priority.",
+            );
+          }
+
+          grid.replaceChildren();
+          stateRegion.replaceChildren();
+
+          if (data.projects.length === 0) {
+            setVisibility(summary, false);
+            setVisibility(grid, false);
+            stateRegion.append(
+              showState(
+                "",
+                "No projects yet",
+                "There are no project records to show. Add a project to project-data.json to get started.",
+              ),
+            );
+            return;
+          }
+
+          data.projects.forEach((project, index) => {
+            grid.append(createProjectCard(project, index));
+          });
+          updateSummary(data.projects);
+          setVisibility(summary, true);
+          setVisibility(grid, true);
+        } catch (error) {
+          setVisibility(summary, false);
+          setVisibility(grid, false);
+          stateRegion.replaceChildren(
+            showState(
+              "error",
+              "Project data could not be loaded",
+              `${error.message} Check that project-data.json is available and follows the expected format.`,
+            ),
+          );
+        }
+      }
+
+      document.addEventListener("DOMContentLoaded", loadProjects);
+    </script>
+  </head>
+  <body>
+    <main class="dashboard">
+      <header class="dashboard-header">
+        <div class="dashboard-heading">
+          <p class="dashboard-eyebrow">A clearer view of the work</p>
+          <h1 class="dashboard-title">Project Pulse</h1>
+          <p class="dashboard-description">
+            A quick snapshot of project health, ownership, priorities, and what moved recently.
+            The records below are illustrative demo data, not Mona's project data.
+          </p>
+        </div>
+      </header>
+
+      <section
+        class="dashboard-summary"
+        id="dashboard-summary"
+        aria-label="Project summary"
+        hidden
+        style="display: none"
+      >
+        <div class="summary-item">
+          <span>Projects</span>
+          <strong class="summary-value" id="project-count">0</strong>
+        </div>
+        <div class="summary-item">
+          <span>High priority</span>
+          <strong class="summary-value" id="high-priority-count">0</strong>
+        </div>
+        <div class="summary-item">
+          <span>On track</span>
+          <strong class="summary-value" id="on-track-count">0</strong>
+        </div>
+      </section>
+
+      <section aria-labelledby="projects-heading">
+        <div class="dashboard-section-heading">
+          <h2 class="dashboard-section-title" id="projects-heading">Your projects</h2>
+          <p class="dashboard-section-note">Illustrative examples for the dashboard preview</p>
+        </div>
+        <div id="dashboard-content" aria-live="polite">
+          <div class="dashboard-state dashboard-state--loading" role="status">
+            <span class="loading-indicator">Loading project data…</span>
+          </div>
+        </div>
+        <div
+          class="project-grid"
+          id="project-grid"
+          aria-label="Projects"
+          hidden
+          style="display: none"
+        ></div>
+      </section>
+
+      <noscript>
+        <p class="dashboard-state dashboard-state--error">
+          Project Pulse needs JavaScript enabled to load the project data.
+        </p>
+      </noscript>
+    </main>
+  </body>
+</html>
